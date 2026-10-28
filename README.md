@@ -94,18 +94,21 @@ Custom exporter queries (`config/postgres-exporter/queries.yml`):
 ## Using it from odoo-actions
 
 The client repo's `.github/workflows/observer.yml` (from `templates/observer.yml` in odoo-actions)
-calls `The-macharia/odoo-actions/observer@v1`. The action checks out this repo and runs `deploy.sh`.
-Which repo and version it uses:
+calls `The-macharia/odoo-actions/observer@v1` with one line naming this repo and version:
 
-| Repo variable | Default | Effect |
-|---|---|---|
-| `OBSERVER_REPO` | `The-macharia/odoo-observer` | Any repo or fork that keeps the deploy interface below |
-| `OBSERVER_REF` | `v1` | A tag (`v1`, `v1.2.0`), branch or commit |
+```
+observer: The-macharia/odoo-observer@v1
+```
 
-- **Switch one server:** set the variable on its repo and rerun Observer.
-- **Pin a server so later releases don't reach it:** set `OBSERVER_REF` to an exact version
-  (`v1.2.0`).
-- **Roll back:** set `OBSERVER_REF` to the previous version and rerun.
+The action fetches that repo at that ref and runs `deploy.sh`. The format is
+`<owner/repo or git URL>@<tag, branch or commit>`. Edit the line in a server's workflow to:
+
+- **pin it** so later releases don't reach it: `@v1.0.1`;
+- **roll it back:** the previous version;
+- **switch it to a fork** that keeps the deploy interface below:
+  `other-owner/odoo-observer@v1` or `https://git.example.com/odoo-observer.git@main`.
+
+Then rerun Observer.
 
 ### Setting up a server
 
@@ -153,7 +156,7 @@ Once per server:
 
 `deploy.sh` takes everything from the environment. Set every variable; leave it empty where it
 doesn't apply. A fork that keeps these names, and the paths `deploy.sh`, `stack.yml`,
-`hub-stack.yml`, `config/` and `hub/`, can replace this repo through `OBSERVER_REPO`.
+`hub-stack.yml`, `config/` and `hub/`, can replace this repo through the `observer:` line.
 
 | Variable | Used on | Meaning |
 |---|---|---|

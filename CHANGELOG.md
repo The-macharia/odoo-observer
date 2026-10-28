@@ -1,9 +1,14 @@
 # Changelog
 
+## v1.0.1
+
+- **Docs:** the odoo-actions observer action takes one line, `observer: <repo>@<ref>`, written into
+  each client workflow.
+
 ## v1.0.0
 
 The observer as a standalone repo. It was the `observer/` directory of odoo-actions, which now
-checks this repo out at `OBSERVER_REF` (default `v1`).
+fetches this repo at the ref given by its `observer:` line.
 
 - **Per-server stack:**
   - Prometheus, Loki, Grafana, Alloy, node-exporter, cadvisor, postgres-exporter and blackbox;

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Deploys (or removes) swarm stack "observer" next to the Odoo stack $STACK. All input comes from
-# the environment set in action.yml. The server whose DOMAIN is the HUB also runs Alertmanager,
-# federates every server in FLEET_FILE and serves Grafana at the hub domain's root.
+# Deploys (or removes) swarm stack "observer" next to the Odoo stack $STACK. All input comes from the
+# environment, documented in README.md under "Deploy interface"; any caller (the odoo-actions observer
+# action, or a shell) may run it. The server whose DOMAIN is the HUB also runs Alertmanager, federates
+# every server in FLEET_FILE and serves Grafana at the hub domain's root.
 set -euo pipefail
 
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

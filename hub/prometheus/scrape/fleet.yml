@@ -1,4 +1,4 @@
-# Targets are generated from the hub repo's fleet file by observer.sh.
+# Targets are generated from the hub repo's fleet file by deploy.sh.
 scrape_configs:
   # a failed federation scrape is the heartbeat: up{job="fleet"} == 0
   - job_name: fleet

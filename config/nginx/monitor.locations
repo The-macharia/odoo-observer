@@ -1,4 +1,4 @@
-# Written by the observer action and pulled into the Odoo server{} by
+# Written by deploy.sh and pulled into the Odoo server{} by
 #   include /etc/nginx/conf.d/monitor/*.locations;
 # ^~ keeps the static-asset regex locations from taking these paths. Upstreams are resolved per
 # request so nginx still starts while the observer stack is down.

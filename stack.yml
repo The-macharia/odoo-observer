@@ -1,4 +1,4 @@
-# Swarm stack "observer". observer.sh copies this next to ./etc and ./secrets and exports every ${VAR}.
+# Swarm stack "observer". deploy.sh copies this next to ./etc and ./secrets and exports every ${VAR}.
 x-logging: &logging
   driver: json-file
   options: {max-size: 20m, max-file: '3'}

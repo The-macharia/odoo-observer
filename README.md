@@ -168,7 +168,7 @@ doesn't apply. A fork that keeps these names, and the paths `deploy.sh`, `stack.
 | `DB` | all | Odoo database for the exporter, `pg_stat_statements` and Grafana's live view |
 | `NETWORK` | all | Overlay network the Odoo stack uses (the observer joins it) |
 | `PROJECT_DIR` | all | The observer keeps `etc/` and `secrets/` in `$PROJECT_DIR/observer` |
-| `BACKUP_DIR` | all | Where the backup job writes `odoo_backup.prom` (`odoo_backup_last_success_timestamp_seconds`) |
+| `BACKUP_DIR` | all | The backup job writes `metrics/odoo_backup.prom` (`odoo_backup_last_success_timestamp_seconds`) here. node-exporter mounts only `metrics/`, so the dumps stay private |
 | `MONITOR_PASSWORD` | all | Grafana `admin` password, re-applied on every run |
 | `FLEET_PASSWORD` | all | Basic-auth password of user `fleet` between the hub and every server |
 | `FLEET_FILE` | hub | Path to the fleet file (format above) |

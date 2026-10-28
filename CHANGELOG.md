@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.0
+
+- **Fix: "Last backup" showed "never"** on every server whose home directory is private.
+  - node-exporter runs as `nobody` and got "permission denied" on `/home/odoo/backups`.
+  - It now mounts only `BACKUP_DIR/metrics`, so the dumps beside it stay private.
+  - `deploy.sh` creates that folder and moves an existing `odoo_backup.prom` into it.
+  - **Backup jobs must write `BACKUP_DIR/metrics/odoo_backup.prom`.** The odoo-actions backup
+    action does from fff2bfa on.
+
 ## v1.0.1
 
 - **Docs:** the odoo-actions observer action takes one line, `observer: <repo>@<ref>`, written into

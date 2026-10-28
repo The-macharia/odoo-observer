@@ -133,6 +133,11 @@ if $hub; then
 fi
 
 # --- stack ------------------------------------------------------------------------------------
+# node-exporter's textfile folder; must exist before the bind mount
+mkdir -p -m 755 "$BACKUP_DIR/metrics"
+# backup jobs from before metrics/ wrote the status file beside the dumps
+[ "$BACKUP_DIR/odoo_backup.prom" -nt "$BACKUP_DIR/metrics/odoo_backup.prom" ] \
+    && mv "$BACKUP_DIR/odoo_backup.prom" "$BACKUP_DIR/metrics/"
 files=(-c stack.yml)
 $hub && files+=(-c hub-stack.yml)
 cd "$OBS"

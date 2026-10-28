@@ -203,7 +203,7 @@ groups:
         labels: {severity: critical}
         annotations:
           summary: No backup has been recorded on this server
-          description: The backup action writes odoo_backup.prom into BACKUP_DIR on success.
+          description: The backup job writes odoo_backup.prom into BACKUP_DIR/metrics on success.
           dashboard: __URL__/d/server
       - alert: MonitoringTargetDown
         expr: up{job!~"fleet.*"} == 0

@@ -86,9 +86,12 @@ services:
     command:
       - --path.rootfs=/host
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|run|var/lib/docker)($$|/)
-      - --collector.textfile.directory=/host${BACKUP_DIR}
+      - --collector.textfile.directory=/textfile
     volumes:
       - /:/host:ro,rslave
+      # node-exporter runs as nobody and cannot reach a private home; mounting only metrics/ also
+      # keeps the dumps beside it unreadable
+      - ${BACKUP_DIR}/metrics:/textfile:ro
     networks: [app]
     logging: *logging
     deploy:

@@ -57,8 +57,8 @@ The summaries and descriptions are the ones the alerts carry. "First check" is w
 
 | Alert | Severity | Fires when | First check |
 |---|---|---|---|
-| BackupTooOld | critical | The last recorded good backup is over 26h old | The Database Backup workflow runs |
-| BackupMissing | critical | No backup has been recorded on this server for 26h | The backup job must write `odoo_backup.prom` into `BACKUP_DIR/metrics` (mode 644) |
+| BackupTooOld | critical | A database's last recorded good backup is over 26h old (each database on the server separately) | The Database Backup workflow runs of that database's repo |
+| BackupMissing | critical | No backup has been recorded on this server for 26h | The backup job must write `BACKUP_DIR/metrics/odoo_backup_<db>.prom` (mode 644) |
 | MonitoringTargetDown | warning | An exporter or the probe has not reported for 5 min | Its panels and alerts are blind until it is back |
 
 ## Hub (`hub/prometheus/rules/hub.yml`)

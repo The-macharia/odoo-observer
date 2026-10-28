@@ -51,7 +51,7 @@
      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
     {"type": "stat", "title": "Last backup", "gridPos": {"x": 18, "y": 0, "w": 3, "h": 4},
      "datasource": {"type": "prometheus", "uid": "${ds}"},
-     "targets": [{"refId": "A", "expr": "time() - max(odoo_backup_last_success_timestamp_seconds)"}],
+     "targets": [{"refId": "A", "expr": "time() - max by (db) (odoo_backup_last_success_timestamp_seconds)", "legendFormat": "{{db}}"}],
      "fieldConfig": {"defaults": {"unit": "s", "decimals": 0, "noValue": "never",
        "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 93600}]}}, "overrides": []},
      "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},

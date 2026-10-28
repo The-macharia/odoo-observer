@@ -190,11 +190,12 @@ groups:
 
   - name: observer-platform
     rules:
+      # per database: several share a server, and the freshest must not hide a stale one
       - alert: BackupTooOld
-        expr: time() - max(odoo_backup_last_success_timestamp_seconds) > 26 * 3600
+        expr: time() - max by (db) (odoo_backup_last_success_timestamp_seconds) > 26 * 3600
         labels: {severity: critical}
         annotations:
-          summary: Last good backup is {{ $value | humanizeDuration }} old
+          summary: Last good backup of {{ $labels.db }} is {{ $value | humanizeDuration }} old
           description: Check the Database Backup workflow runs.
           dashboard: __URL__/d/server
       - alert: BackupMissing

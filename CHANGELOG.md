@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.0
+
+- **Backups are tracked per database.** Several databases can share a server (muritechnologies, ruman
+  and edgescor on the hub).
+  - The backup job writes `BACKUP_DIR/metrics/odoo_backup_<db>.prom` instead of one shared file,
+    where the last database to finish hid the others.
+  - `BackupTooOld` fires per database.
+  - "Last backup" shows one value per database.
+  - Needs odoo-actions edffe57 or later, which also keeps each database's zips in `BACKUP_DIR/<db>/`.
+- `deploy.sh` no longer moves a top-level `odoo_backup.prom`. That one-time move ran on every server
+  in v1.1.0.
+
 ## v1.1.0
 
 - **Fix: "Last backup" showed "never"** on every server whose home directory is private.

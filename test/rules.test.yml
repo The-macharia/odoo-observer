@@ -94,3 +94,21 @@ tests:
               summary: The checkpointer has not started a checkpoint for 45 minutes
               description: The checkpointer waits on a page lock, so WAL piles up and a restart has more to replay. Look for a stuck vacuum or a session waiting on an LWLock.
               dashboard: __URL__/d/pg-live
+
+  # ruman and muritechnologies share a server: ruman's stale backup alerts although the other's is fresh
+  - interval: 1h
+    input_series:
+      - {series: 'odoo_backup_last_success_timestamp_seconds{db="muritechnologies"}', values: 0+3600x40}
+      - {series: 'odoo_backup_last_success_timestamp_seconds{db="ruman"}', values: 0x40}
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: BackupTooOld
+        exp_alerts: []
+      - eval_time: 28h
+        alertname: BackupTooOld
+        exp_alerts:
+          - exp_labels: {severity: critical, db: ruman}
+            exp_annotations:
+              summary: Last good backup of ruman is 1d 4h 0m 0s old
+              description: Check the Database Backup workflow runs.
+              dashboard: __URL__/d/server

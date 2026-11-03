@@ -110,13 +110,26 @@ The action fetches that repo at that ref and runs `deploy.sh`. The format is
 
 Then rerun Observer.
 
+### External Postgres (Azure, RDS)
+
+A stack with no `<STACK>_db` service is taken to use an external Postgres. `deploy.sh` reads
+`db_host`, `db_port`, `db_user` and `db_password` from the odoo.conf mounted into `<STACK>_odoo`,
+creates the `observer` role as that user, and every connection uses `sslmode=require`.
+
+- Enable `pg_stat_statements` in the server's parameters (on Azure, in `azure.extensions` and
+  `shared_preload_libraries`, which needs a restart). The deploy stops at `CREATE EXTENSION` until then.
+- The Postgres log panels and the log alerts on `<STACK>_db` stay empty: its log is not a container's.
+- The admin may not be allowed to grant `pg_use_reserved_connections`. The deploy then warns, and
+  monitoring cannot connect while Postgres is full.
+
 ### Setting up a server
 
 Once per server:
 
 1. **Repo variables:**
    - `MONITOR_DOMAIN`: the domain whose nginx serves `/monitor`; the hub domain on the hub.
-   - `MONITOR_HUB`: the hub domain.
+   - `MONITOR_HUB`: the hub domain. Leave it empty for a standalone server: its rules still show in
+     Grafana, but no alert leaves it.
    - `STACK`, `MAIN_DB`, `RUNNER`, and optionally `NETWORK`, `PROJECT_DIR` and `BACKUP_DIR`.
 2. **Repo secrets:** `MONITOR_PASSWORD` (Grafana admin) and `MONITOR_FLEET_PASSWORD` (the same on
    every server).
@@ -149,8 +162,12 @@ Once per server:
    ruman                ruman.muritechnologies.com       probe
    ```
 
-6. **Run the Observer workflow.** Rerun it after any change; it applies config changes in place.
-   `down` removes the stack and the nginx paths but keeps the data volumes.
+6. **Optional, your own dashboards:** Grafana JSON files in the client repo's `monitor/dashboards/`
+   are provisioned beside the stock ones. They take the same `__PLACEHOLDERS__`.
+7. **Run the Observer workflow.** Rerun it after any change; it applies config changes in place.
+   `restart` restarts every service without touching config. `stop` removes the services but keeps
+   the data volumes and nginx paths; `deploy` starts them again. `down` removes the stack and the
+   nginx paths but keeps the data volumes.
 
 ## Deploy interface
 
@@ -160,11 +177,11 @@ doesn't apply. A fork that keeps these names, and the paths `deploy.sh`, `stack.
 
 | Variable | Used on | Meaning |
 |---|---|---|
-| `ACTION` | all | `deploy` or `down` |
-| `STACK` | all | Swarm stack of the Odoo app. Needs `<STACK>_db`, plus `<STACK>_nginx` mounting `/etc/nginx/conf.d` (and `/etc/letsencrypt` on the hub) |
+| `ACTION` | all | `deploy`, `restart`, `stop` or `down` |
+| `STACK` | all | Swarm stack of the Odoo app. Needs `<STACK>_db` (or see [External Postgres](#external-postgres-azure-rds)), plus `<STACK>_nginx` mounting `/etc/nginx/conf.d` (and `/etc/letsencrypt` on the hub) |
 | `CLIENT` | all | Name the server reports as (the `client` label) |
 | `DOMAIN` | all | Domain whose nginx serves `/monitor`; equal to `HUB` on the hub |
-| `HUB` | all | Hub domain; alerts go to `https://$HUB/alertmanager` |
+| `HUB` | all | Hub domain; alerts go to `https://$HUB/alertmanager`. Empty: standalone, alerts go nowhere |
 | `DB` | all | Odoo database for the exporter, `pg_stat_statements` and Grafana's live view |
 | `NETWORK` | all | Overlay network the Odoo stack uses (the observer joins it) |
 | `PROJECT_DIR` | all | The observer keeps `etc/` and `secrets/` in `$PROJECT_DIR/observer` |

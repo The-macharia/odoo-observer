@@ -134,7 +134,7 @@ services:
       - --no-collector.stat_user_tables
       - --no-collector.statio_user_tables
     environment:
-      DATA_SOURCE_NAME: postgresql://observer:${DB_PASSWORD}@${STACK}_db:5432/${DB}?sslmode=disable&application_name=observer-exporter
+      DATA_SOURCE_NAME: postgresql://observer:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB}?sslmode=${DB_SSLMODE}&application_name=observer-exporter
     volumes:
       - ./etc/postgres-exporter:/etc/postgres-exporter:ro
     networks: [app]
@@ -149,7 +149,9 @@ services:
     image: postgres:17-alpine
     command: [psql, -XAtq, -f, /etc/recorder/recorder.sql]
     environment:
-      PGHOST: ${STACK}_db
+      PGHOST: ${DB_HOST}
+      PGPORT: ${DB_PORT}
+      PGSSLMODE: ${DB_SSLMODE}
       PGUSER: observer
       PGPASSWORD: ${DB_PASSWORD}
       PGDATABASE: postgres

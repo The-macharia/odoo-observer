@@ -43,7 +43,7 @@ ruler:
   rule_path: /loki/rules-temp
   evaluation_interval: 1m
   external_url: __URL__
-  alertmanager_url: __AM_SCHEME__://__AM_HOST__/alertmanager
+  alertmanager_url: __AM_URL__
   alertmanager_client:
     basic_auth_username: fleet
     basic_auth_password: ${FLEET_PASSWORD}

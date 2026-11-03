@@ -20,11 +20,11 @@ datasources:
   - name: __CLIENT__ db
     uid: pg
     type: grafana-postgresql-datasource
-    url: __STACK___db:5432
+    url: __DB_HOST__:__DB_PORT__
     user: observer
     jsonData:
       database: __DB__
-      sslmode: disable
+      sslmode: __DB_SSLMODE__
       postgresVersion: 1600
       maxOpenConns: 2
       maxIdleConns: 1

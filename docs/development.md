@@ -30,7 +30,8 @@ anything server-specific:
 |---|---|
 | `__CLIENT__`, `__STACK__`, `__DB__`, `__HUB__` | the deploy variables of the same names |
 | `__URL__` | that server's Grafana (`https://<domain>/monitor`, or `https://<hub>` on the hub) |
-| `__AM_SCHEME__`, `__AM_HOST__` | how Prometheus and Loki reach the Alertmanager |
+| `__DB_HOST__`, `__DB_PORT__`, `__DB_SSLMODE__` | the Postgres the exporter, recorder and Grafana connect to |
+| `__AM_SCHEME__`, `__AM_TARGETS__`, `__AM_URL__` | how Prometheus and Loki reach the Alertmanager; empty targets and URL without a hub |
 | `__TELEGRAM_CHAT__` | the Telegram chat id |
 | `__HEARTBEAT_RECEIVER__` | `heartbeat`, or `discard` without a heartbeat URL |
 

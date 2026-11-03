@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.0
+
+- **External Postgres (Azure, RDS).** A stack with no `<STACK>_db` service is monitored through the
+  host, port and admin login in its Odoo config, over `sslmode=require`.
+- **Standalone servers.** An empty `HUB` deploys the stack with no Alertmanager to send to.
+- **`restart` and `stop` actions.** Restart every service in place, or remove them while keeping
+  the data and the nginx paths.
+- **Client dashboards.** JSON files in the calling repo's `monitor/dashboards/` are provisioned too.
+- `pg_use_reserved_connections` is granted when the admin can; otherwise the deploy warns instead of
+  failing.
+
 ## v1.2.0
 
 - **Backups are tracked per database.** Several databases can share a server (muritechnologies, ruman

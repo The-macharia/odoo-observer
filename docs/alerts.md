@@ -1,7 +1,7 @@
 # Alerts
 
-Every server evaluates its own rules and sends them to the hub's Alertmanager, which posts to the
-Telegram group:
+Every server evaluates its own rules. A hub's servers send them to the hub's Alertmanager; a standalone
+server with Telegram settings runs its own. Either posts to the Telegram group:
 
 - **Grouping.** Alerts are grouped by `client` and `alertname`. The first message waits 30s, updates
   follow at most every 5 min, and a still-firing group repeats every 4h.
@@ -61,11 +61,16 @@ The summaries and descriptions are the ones the alerts carry. "First check" is w
 | BackupMissing | critical | No backup has been recorded on this server for 26h | The backup job must write `BACKUP_DIR/metrics/odoo_backup_<db>.prom` (mode 644) |
 | MonitoringTargetDown | warning | An exporter or the probe has not reported for 5 min | Its panels and alerts are blind until it is back |
 
+## Wherever an Alertmanager runs (`alerting/prometheus/rules/watchdog.yml`)
+
+| Alert | Severity | Fires when | First check |
+|---|---|---|---|
+| Watchdog | none | Always | Not an incident: it pings `MONITOR_HEARTBEAT_URL` every minute. Silence from healthchecks.io means that server's alerting is down |
+
 ## Hub (`hub/prometheus/rules/hub.yml`)
 
 | Alert | Severity | Fires when | First check |
 |---|---|---|---|
-| Watchdog | none | Always | Not an incident: it pings `MONITOR_HEARTBEAT_URL` every minute. Silence from healthchecks.io means the hub is down |
 | ClientUnreachable | critical | The hub cannot federate a client for 3 min | That client's nginx and observer stack; its own alerts may not arrive either |
 | OdooUnreachableFromOutside | critical | A domain in the fleet file fails `/web/health` from the hub for 3 min | DNS, certificate, nginx |
 | SslCertExpiring | warning / critical | A certificate expires within 14 / 3 days | The ssl-renew job on that server |

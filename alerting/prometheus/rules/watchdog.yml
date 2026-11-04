@@ -1,0 +1,9 @@
+groups:
+  - name: observer-alerting
+    rules:
+      # pinged out to healthchecks.io every minute; silence there means this server's alerting is down
+      - alert: Watchdog
+        expr: vector(1)
+        labels: {severity: none}
+        annotations:
+          summary: Heartbeat

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Deploys (or removes) swarm stack "observer" next to the Odoo stack $STACK. All input comes from the
 # environment, documented in README.md under "Deploy interface"; any caller (the odoo-actions observer
-# action, or a shell) may run it. The server whose DOMAIN is the HUB also runs Alertmanager, federates
-# every server in FLEET_FILE and serves Grafana at the hub domain's root.
+# action, or a shell) may run it. The server whose DOMAIN is the HUB also federates every server in
+# FLEET_FILE and serves Grafana at the hub domain's root. What else runs is chosen by HUB, EXPORT and
+# the Telegram settings; README.md, "Choosing what runs".
 set -euo pipefail
 
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -51,15 +52,30 @@ if [ "$ACTION" = down ]; then
     exit 0
 fi
 
+# a hub's servers export by default, since the hub reads their data
+case ${EXPORT:-} in
+    true | false) export_api=$EXPORT ;;
+    '') if [ -n "$HUB" ] && ! $hub; then export_api=true; else export_api=false; fi ;;
+    *) die "EXPORT must be true, false or empty, got '$EXPORT'" ;;
+esac
+# alerts are delivered from here on the hub, and on a standalone server given a Telegram bot; a hub's
+# servers send theirs to the hub
+local_am=$hub
+if [ -z "$HUB" ] && [ -n "$TELEGRAM_BOT_TOKEN" ]; then local_am=true; fi
+
+[ -n "$PROJECT_DIR" ] || die "PROJECT_DIR is not set"
 [ -n "$MONITOR_PASSWORD" ] || die "secret MONITOR_PASSWORD is not set"
-[ -n "$FLEET_PASSWORD" ] || die "secret MONITOR_FLEET_PASSWORD is not set"
-if $hub; then
+# an empty password would let anyone in as "fleet"
+if [ -n "$HUB" ] || $export_api; then
+    [ -n "$FLEET_PASSWORD" ] || die "secret MONITOR_FLEET_PASSWORD is not set; a hub, its servers and EXPORT need it"
+fi
+if $local_am; then
     [ -n "$TELEGRAM_BOT_TOKEN" ] || die "secret MONITOR_TELEGRAM_BOT_TOKEN is not set"
     [[ $TELEGRAM_CHAT_ID =~ ^-?[0-9]+$ ]] || die "variable MONITOR_TELEGRAM_CHAT_ID must be the numeric chat id"
     [ -n "$HEARTBEAT_URL" ] \
-        || echo "::warning::secret MONITOR_HEARTBEAT_URL is not set, so nothing reports the hub itself going down"
-    [ -f "$FLEET_FILE" ] || die "$FLEET_FILE is missing from the repo"
+        || echo "::warning::secret MONITOR_HEARTBEAT_URL is not set, so nothing reports this server's alerting going down"
 fi
+if $hub; then [ -f "$FLEET_FILE" ] || die "$FLEET_FILE is missing from the repo"; fi
 # pg <psql args>: psql as the Postgres admin, on database postgres
 if docker service inspect "${STACK}_db" >/dev/null 2>&1; then
     db_ctr=$(running "${STACK}_db")
@@ -87,17 +103,27 @@ PY
 fi
 
 # --- config ---------------------------------------------------------------------------------
+# rebuilt from scratch, so turning a part off also removes its files
+rm -rf "$OBS/etc"
 mkdir -p "$OBS/etc" "$OBS/secrets"
 chmod 700 "$OBS/secrets"
 cp -r "$SRC/config/." "$OBS/etc/"
-cp "$SRC/stack.yml" "$SRC/hub-stack.yml" "$OBS/"
-# the calling repo's own dashboards, from beside its fleet file; replaced whole so deletions stick
-rm -rf "$OBS/etc/grafana/dashboards/client"
+cp "$SRC/stack.yml" "$SRC/alertmanager-stack.yml" "$OBS/"
+# the calling repo's own dashboards, from beside its fleet file
 if [ -d monitor/dashboards ]; then cp -r monitor/dashboards "$OBS/etc/grafana/dashboards/client"; fi
+if $local_am; then cp -r "$SRC/alerting/." "$OBS/etc/"; fi
+
+if $local_am; then
+    am_scheme=http am_targets="'alertmanager:9093'" am_url=http://alertmanager:9093/alertmanager alerts=Telegram
+elif [ -n "$HUB" ]; then
+    am_scheme=https am_targets="'$HUB:443'" am_url=https://$HUB/alertmanager alerts="sent to $HUB"
+else
+    # rules still evaluate and show in Grafana, but no alert leaves the server
+    am_scheme=http am_targets= am_url= alerts=off
+fi
 
 if $hub; then
-    url=https://$HUB am_scheme=http am_targets="'alertmanager:9093'" am_url=http://alertmanager:9093/alertmanager
-    sub_path=false home=fleet
+    url=https://$HUB sub_path=false home=fleet
     cp -r "$SRC/hub/." "$OBS/etc/"
     mkdir -p "$OBS/etc/prometheus/fleet"
     federate=$OBS/etc/prometheus/fleet/federate.yml
@@ -122,9 +148,7 @@ if $hub; then
 EOF
     done < "$FLEET_FILE"
 else
-    url=https://$DOMAIN/monitor am_scheme=https am_targets= am_url= sub_path=true home=server
-    # standalone without a hub: rules still evaluate and show in Grafana, but no alert leaves the server
-    if [ -n "$HUB" ]; then am_targets="'$HUB:443'" am_url=https://$HUB/alertmanager; fi
+    url=https://$DOMAIN/monitor sub_path=true home=server
 fi
 
 { grep -rl '__[A-Z_]*__' "$OBS/etc" || true; } | xargs -r sed -i \
@@ -140,7 +164,7 @@ fi
     || python3 -c 'import secrets; print(secrets.token_hex(16), end="")' > "$OBS/secrets/db_password"
 DB_PASSWORD=$(cat "$OBS/secrets/db_password")
 printf %s "$FLEET_PASSWORD" > "$OBS/secrets/fleet_password"
-if $hub; then
+if $local_am; then
     printf %s "$TELEGRAM_BOT_TOKEN" > "$OBS/secrets/telegram_token"
     printf %s "$HEARTBEAT_URL" > "$OBS/secrets/heartbeat_url"
 fi
@@ -185,7 +209,7 @@ fi
 # node-exporter's textfile folder; must exist before the bind mount
 mkdir -p -m 755 "$BACKUP_DIR/metrics"
 files=(-c stack.yml)
-$hub && files+=(-c hub-stack.yml)
+if $local_am; then files+=(-c alertmanager-stack.yml); fi
 cd "$OBS"
 export STACK DB HUB NETWORK BACKUP_DIR MONITOR_PASSWORD FLEET_PASSWORD DB_PASSWORD DB_HOST DB_PORT DB_SSLMODE
 export MONITOR_URL=$url GF_SUB_PATH=$sub_path HOME_DASHBOARD=$home
@@ -193,15 +217,19 @@ timeout 10m docker stack deploy "${files[@]}" --prune --detach=false observer
 restart_all
 
 # --- nginx ------------------------------------------------------------------------------------
+rm -rf "$conf/monitor"
 mkdir -p "$conf/monitor"
-python3 -c 'import base64, hashlib, os
+if $hub || $export_api; then
+    python3 -c 'import base64, hashlib, os
 salt = os.urandom(8)
 digest = hashlib.sha1(os.environ["FLEET_PASSWORD"].encode() + salt).digest()
 print("fleet:{SSHA}" + base64.b64encode(digest + salt).decode())' > "$conf/monitor/htpasswd"
+fi
 if $hub; then
     cp "$OBS/etc/nginx/monitor-hub.conf" "$conf/monitor-hub.conf"
 else
     cp "$OBS/etc/nginx/monitor.locations" "$conf/monitor/"
+    if $export_api; then cp "$OBS/etc/nginx/export.locations" "$conf/monitor/"; fi
     grep -qs 'conf.d/monitor/\*.locations' "$conf"/*.conf \
         || echo "::warning::no server{} includes /etc/nginx/conf.d/monitor/*.locations, so /monitor is not served"
 fi
@@ -223,4 +251,4 @@ for _ in $(seq 24); do
 done
 [ -n "${synced:-}" ] || echo "::warning::could not set the Grafana admin password; it keeps its previous value"
 
-echo "Grafana: $url/ (user admin)"
+echo "Grafana: $url/ (user admin); alerts: $alerts; export: $export_api"

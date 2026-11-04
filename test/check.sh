@@ -3,11 +3,11 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-img() { grep -ohE "image: \S*$1\S*" "$here/stack.yml" "$here/hub-stack.yml" | head -1 | cut -d' ' -f2; }
+img() { grep -ohE "image: \S*$1\S*" "$here/stack.yml" "$here/alertmanager-stack.yml" | head -1 | cut -d' ' -f2; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-cp -r "$here/config/." "$here/hub/." "$tmp/"
+cp -r "$here/config/." "$here/alerting/." "$here/hub/." "$tmp/"
 grep -rl '__[A-Z_]*__' "$tmp" | xargs sed -i \
     -e 's|__CLIENT__|test|g' -e 's|__STACK__|test|g' -e 's|__DB__|test|g' -e 's|__HUB__|hub.example.com|g' \
     -e 's|__DB_HOST__|test_db|g' -e 's|__DB_PORT__|5432|g' -e 's|__DB_SSLMODE__|disable|g' \
@@ -39,6 +39,9 @@ grep -q 'targets: \[\]' "$tmp/prometheus/prometheus.yml"
 check_prometheus
 check_loki
 docker run --rm -v "$tmp/alloy:/etc/alloy:ro" "$(img alloy)" fmt /etc/alloy/config.alloy > /dev/null
+# both /monitor files inside a bare server{}, as the Odoo nginx includes them
+printf 'events {}\nhttp { server { listen 8080; include /etc/nginx/monitor/*.locations; } }\n' > "$tmp/nginx/test.conf"
+docker run --rm -v "$tmp/nginx:/etc/nginx/monitor:ro" nginx:1.28-alpine nginx -t -q -c /etc/nginx/monitor/test.conf
 for f in "$tmp"/grafana/dashboards/*.json; do
     python3 -m json.tool "$f" > /dev/null || { echo "bad json: $f"; exit 1; }
 done

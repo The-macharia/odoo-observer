@@ -1,12 +1,6 @@
 groups:
   - name: observer-hub
     rules:
-      # pinged out to healthchecks.io every minute; silence there means the hub itself is down
-      - alert: Watchdog
-        expr: vector(1)
-        labels: {severity: none}
-        annotations:
-          summary: Hub heartbeat
       - alert: ClientUnreachable
         expr: up{job="fleet"} == 0
         for: 3m

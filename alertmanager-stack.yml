@@ -1,11 +1,13 @@
-# Added to stack.yml on the hub only.
+# Added to stack.yml where alerts are delivered from this server: the hub, or a standalone server with Telegram.
 services:
   alertmanager:
     image: prom/alertmanager:v0.34.1
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
-      - --web.external-url=https://${HUB}/alertmanager/
+      - --web.external-url=${MONITOR_URL}/alertmanager/
+      # fixed, so Prometheus and Loki find it under the same path whatever the external URL
+      - --web.route-prefix=/alertmanager
     volumes:
       - ./etc/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./secrets/telegram_token:/etc/alertmanager/telegram_token:ro

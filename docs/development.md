@@ -5,7 +5,7 @@
 ```
 deploy.sh                   installs or removes the stack on a server (see README → Deploy interface)
 stack.yml                   every server's swarm stack
-hub-stack.yml               added on the hub: Alertmanager
+alertmanager-stack.yml      added where an Alertmanager runs: the hub, or a standalone server with Telegram
 config/                     copied to $PROJECT_DIR/observer/etc on every server
   prometheus/               prometheus.yml, rules/observer.yml (recording rules and alerts)
   loki/                     loki.yml, rules/fake/observer.yml (log alerts; "fake" is Loki's single-tenant id)
@@ -13,11 +13,15 @@ config/                     copied to $PROJECT_DIR/observer/etc on every server
   postgres-exporter/        custom queries (pg_holder, pg_blocked, pg_wraparound, pg_table)
   recorder/recorder.sql     the 30s session snapshot
   blackbox/, grafana/       probe modules, datasources and dashboards
-  nginx/monitor.locations   the /monitor paths included into the Odoo server{}
+  nginx/monitor.locations   Grafana's /monitor path, included into the Odoo server{}
+  nginx/export.locations    /monitor/prometheus and /monitor/loki, only with EXPORT
+alerting/                   copied over config/ where an Alertmanager runs
+  alertmanager/             routing, Telegram receiver and message template
+  prometheus/rules/         Watchdog heartbeat
+  grafana/                  Alertmanager datasource
 hub/                        copied over config/ on the hub only
   prometheus/               fleet federation and outside probes, hub alerts
-  alertmanager/             routing, Telegram receiver and message template
-  grafana/                  Fleet dashboard, Alertmanager datasource
+  grafana/                  Fleet dashboard
   nginx/monitor-hub.conf    the hub's server{}
 test/check.sh               validates everything with each component's own checker
 test/rules.test.yml         promtool unit tests for the alert rules
@@ -31,7 +35,7 @@ anything server-specific:
 | `__CLIENT__`, `__STACK__`, `__DB__`, `__HUB__` | the deploy variables of the same names |
 | `__URL__` | that server's Grafana (`https://<domain>/monitor`, or `https://<hub>` on the hub) |
 | `__DB_HOST__`, `__DB_PORT__`, `__DB_SSLMODE__` | the Postgres the exporter, recorder and Grafana connect to |
-| `__AM_SCHEME__`, `__AM_TARGETS__`, `__AM_URL__` | how Prometheus and Loki reach the Alertmanager; empty targets and URL without a hub |
+| `__AM_SCHEME__`, `__AM_TARGETS__`, `__AM_URL__` | how Prometheus and Loki reach the Alertmanager: local, the hub's, or empty when alerts are off |
 | `__TELEGRAM_CHAT__` | the Telegram chat id |
 | `__HEARTBEAT_RECEIVER__` | `heartbeat`, or `discard` without a heartbeat URL |
 
@@ -49,7 +53,8 @@ it before publishing.
 ## Adding or changing an alert
 
 1. Add the rule to `config/prometheus/rules/observer.yml`. Use a Loki rule for log patterns, and
-   `hub/prometheus/rules/hub.yml` for hub-only checks.
+   `hub/prometheus/rules/hub.yml` for hub-only checks, `alerting/prometheus/rules/` for checks that
+   need a local Alertmanager.
 2. Give it `severity` (`warning` or `critical`), and `summary`, `description` and `dashboard`
    annotations.
    - Annotations must not contain `<` or `&`: Telegram's HTML mode rejects the whole message.

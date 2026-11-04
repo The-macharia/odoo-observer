@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.0
+
+- **Choose what runs.** A standalone server picks its parts instead of taking the hub-client set:
+  - **Local alerts.** A standalone server given `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` runs its
+    own Alertmanager and posts to Telegram, with the `Watchdog` heartbeat when `HEARTBEAT_URL` is set.
+  - **`EXPORT`.** `/monitor/prometheus` and `/monitor/loki` are published only for a hub's servers
+    by default; `EXPORT=true` or `false` overrides it. They moved to `config/nginx/export.locations`.
+  - `FLEET_PASSWORD` is needed only with a hub or `EXPORT`.
+- `hub-stack.yml` is now `alertmanager-stack.yml`, and the Alertmanager config, its Grafana
+  datasource and the `Watchdog` moved from `hub/` to `alerting/`. Hubs and their servers deploy as
+  before.
+- `etc/` and the `/monitor` nginx files are rebuilt on every run, so a part turned off leaves nothing
+  behind.
+
 ## v1.3.0
 
 - **External Postgres (Azure, RDS).** A stack with no `<STACK>_db` service is monitored through the

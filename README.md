@@ -2,8 +2,9 @@
 
 Monitoring, logs and alerting for Odoo servers that run as Docker Swarm stacks. Every server runs
 its own small observer stack (Prometheus, Loki, Grafana and exporters) and serves Grafana at
-`https://<its domain>/monitor/`. One server is the **hub**. It shows every server in one Grafana,
-holds the only Alertmanager, and posts alerts to Telegram.
+`https://<its domain>/monitor/`. Servers can stand alone, or join a **hub** that shows every server
+in one Grafana and posts their alerts to Telegram. Each server picks its parts: see
+[Choosing what runs](#choosing-what-runs).
 
 This repo holds the stack, its configuration, the dashboards and alert rules, and `deploy.sh`, which
 installs all of it on a server. It does not run by itself. A caller runs `deploy.sh` on the server: usually the
@@ -34,13 +35,31 @@ repo's Observer workflow.
 
 - **Per server.** Prometheus keeps 15 days (capped at 4 GB) and Loki 14 days. Grafana reads both,
   plus the Odoo database directly for the live session view.
-- **Hub.** Each server's Prometheus and Loki ruler send alerts to the hub's Alertmanager. The hub
+- **Hub.** Each of its servers' Prometheus and Loki ruler send alerts to the hub's Alertmanager. The hub
   federates only the `observer:*` summaries and `ALERTS` from each client, and queries everything
   else on demand through per-client datasources. A client the hub cannot reach raises
   `ClientUnreachable`. The `Watchdog` alert pings a dead-man URL every minute, so the hub going down
   is noticed too.
 - **Which server is the hub.** The server whose `DOMAIN` equals `HUB`. It serves Grafana at the root
   of its own domain instead of under `/monitor`.
+
+## Choosing what runs
+
+Every server gets the core: Prometheus, Loki, Grafana at `/monitor/`, the exporters and the alert
+rules. Three settings add the rest:
+
+| Setup | `HUB` | `EXPORT` | Telegram settings | Alerts | `/monitor/prometheus`, `/monitor/loki` |
+|---|---|---|---|---|---|
+| Hub | its own domain | n/a | required | its own Alertmanager posts to Telegram | n/a |
+| A hub's server | the hub's domain | empty (on) | ignored | sent to the hub | published for the hub |
+| Standalone with alerts | empty | empty (off) | set | its own Alertmanager posts to Telegram | not published |
+| Standalone, dashboards only | empty | empty (off) | empty | none; rules show in Grafana only | not published |
+
+- `EXPORT=true` or `false` overrides the default, for example to let an outside Grafana read a
+  standalone server. A hub's server with `EXPORT=false` shows as `ClientUnreachable` on the hub.
+- `MONITOR_FLEET_PASSWORD` is needed only with a hub or with `EXPORT`.
+- `MONITOR_HEARTBEAT_URL` is optional wherever an Alertmanager runs. The `Watchdog` pings it every
+  minute, so silence there means that server's alerting is down.
 
 ## What is implemented
 
@@ -55,7 +74,7 @@ repo's Observer workflow.
 | postgres-exporter | `quay.io/prometheuscommunity/postgres-exporter:v0.20.1` | Postgres stats, `pg_stat_statements`, vacuum progress, checkpoints, plus custom queries |
 | recorder | `postgres:17-alpine` | Logs every non-idle session to Loki every 30s (all sessions once Postgres is 80% full) |
 | blackbox | `prom/blackbox-exporter:v0.29.0` | Probes Odoo's `/web/health` from inside the swarm |
-| alertmanager (hub) | `prom/alertmanager:v0.34.1` | Groups alerts by server and alert, posts to Telegram, pings the heartbeat |
+| alertmanager (hub, standalone with alerts) | `prom/alertmanager:v0.34.1` | Groups alerts by server and alert, posts to Telegram, pings the heartbeat |
 
 **Telling which Odoo process holds a connection.** Odoo is started with
 `ODOO_PGAPPNAME='{{.Service.Name}}.{{.Task.Slot}}-{pid}'`, so every Postgres connection carries its
@@ -80,10 +99,10 @@ Custom exporter queries (`config/postgres-exporter/queries.yml`):
 **Security:**
 
 - Grafana requires a login: `admin` and `MONITOR_PASSWORD`.
-- Behind the `fleet` basic-auth user (`MONITOR_FLEET_PASSWORD`):
+- Behind the `fleet` basic-auth user (`MONITOR_FLEET_PASSWORD`), and published only with `EXPORT`:
   - Prometheus (GET/POST only; its admin and lifecycle APIs are off);
-  - Loki's query endpoints;
-  - the hub's Alertmanager.
+  - Loki's query endpoints.
+- The hub's Alertmanager, behind the same user. A standalone server's Alertmanager is not published.
 - The `observer` database role is read-only (`pg_monitor`), with a connection limit of 6,
   `lock_timeout` 2s and `statement_timeout` 20s, so monitoring never queues behind the locks it
   reports. It may use the slots kept by `reserved_connections`, so it can still connect when Odoo
@@ -128,13 +147,14 @@ Once per server:
 
 1. **Repo variables:**
    - `MONITOR_DOMAIN`: the domain whose nginx serves `/monitor`; the hub domain on the hub.
-   - `MONITOR_HUB`: the hub domain. Leave it empty for a standalone server: its rules still show in
-     Grafana, but no alert leaves it.
+   - `MONITOR_HUB`: the hub domain, or empty for a standalone server.
+   - `MONITOR_EXPORT`: optional, `true` or `false` (see [Choosing what runs](#choosing-what-runs)).
    - `STACK`, `MAIN_DB`, `RUNNER`, and optionally `NETWORK`, `PROJECT_DIR` and `BACKUP_DIR`.
-2. **Repo secrets:** `MONITOR_PASSWORD` (Grafana admin) and `MONITOR_FLEET_PASSWORD` (the same on
-   every server).
-   - The hub also needs secrets `MONITOR_TELEGRAM_BOT_TOKEN` and `MONITOR_HEARTBEAT_URL`, and
-     variable `MONITOR_TELEGRAM_CHAT_ID`, the group's numeric id (`-100…` for supergroups).
+2. **Repo secrets:** `MONITOR_PASSWORD` (Grafana admin).
+   - With a hub or `EXPORT`: `MONITOR_FLEET_PASSWORD`, the same on every server of the hub.
+   - Where alerts go to Telegram (the hub, or a standalone server): secrets
+     `MONITOR_TELEGRAM_BOT_TOKEN` and optionally `MONITOR_HEARTBEAT_URL`, and variable
+     `MONITOR_TELEGRAM_CHAT_ID`, the group's numeric id (`-100…` for supergroups).
 3. **The compose file:**
    - Odoo services: `ODOO_PGAPPNAME: '{{.Service.Name}}.{{.Task.Slot}}-{pid}'`.
    - Postgres, started with:
@@ -173,7 +193,7 @@ Once per server:
 
 `deploy.sh` takes everything from the environment. Set every variable; leave it empty where it
 doesn't apply. A fork that keeps these names, and the paths `deploy.sh`, `stack.yml`,
-`hub-stack.yml`, `config/` and `hub/`, can replace this repo through the `observer:` line.
+`alertmanager-stack.yml`, `config/`, `alerting/` and `hub/`, can replace this repo through the `observer:` line.
 
 | Variable | Used on | Meaning |
 |---|---|---|
@@ -181,21 +201,23 @@ doesn't apply. A fork that keeps these names, and the paths `deploy.sh`, `stack.
 | `STACK` | all | Swarm stack of the Odoo app. Needs `<STACK>_db` (or see [External Postgres](#external-postgres-azure-rds)), plus `<STACK>_nginx` mounting `/etc/nginx/conf.d` (and `/etc/letsencrypt` on the hub) |
 | `CLIENT` | all | Name the server reports as (the `client` label) |
 | `DOMAIN` | all | Domain whose nginx serves `/monitor`; equal to `HUB` on the hub |
-| `HUB` | all | Hub domain; alerts go to `https://$HUB/alertmanager`. Empty: standalone, alerts go nowhere |
+| `HUB` | all | Hub domain; a hub's server sends its alerts to `https://$HUB/alertmanager`. Empty: standalone |
+| `EXPORT` | not the hub | `true` publishes `/monitor/prometheus` and `/monitor/loki` behind the fleet password; empty: on with a hub, off standalone |
 | `DB` | all | Odoo database for the exporter, `pg_stat_statements` and Grafana's live view |
 | `NETWORK` | all | Overlay network the Odoo stack uses (the observer joins it) |
 | `PROJECT_DIR` | all | The observer keeps `etc/` and `secrets/` in `$PROJECT_DIR/observer` |
 | `BACKUP_DIR` | all | Backups go into `<db>/`, and the job writes `metrics/odoo_backup_<db>.prom` (`odoo_backup_last_success_timestamp_seconds`) here. node-exporter mounts only `metrics/`, so the dumps stay private |
 | `MONITOR_PASSWORD` | all | Grafana `admin` password, re-applied on every run |
-| `FLEET_PASSWORD` | all | Basic-auth password of user `fleet` between the hub and every server |
+| `FLEET_PASSWORD` | with a hub or `EXPORT` | Basic-auth password of user `fleet` between the hub and every server |
 | `FLEET_FILE` | hub | Path to the fleet file (format above) |
-| `TELEGRAM_BOT_TOKEN` | hub | Bot that posts the alerts |
-| `TELEGRAM_CHAT_ID` | hub | Numeric chat or group id |
-| `HEARTBEAT_URL` | hub, optional | Dead-man URL pinged each minute by the `Watchdog` alert |
+| `TELEGRAM_BOT_TOKEN` | hub, standalone | Bot that posts the alerts. Standalone: setting it runs a local Alertmanager |
+| `TELEGRAM_CHAT_ID` | hub, standalone | Numeric chat or group id |
+| `HEARTBEAT_URL` | with an Alertmanager, optional | Dead-man URL pinged each minute by the `Watchdog` alert |
 
 **What a run does:**
 
-1. Copies `config/` (plus `hub/` on the hub) to `$PROJECT_DIR/observer/etc`, fills the
+1. Rebuilds `$PROJECT_DIR/observer/etc` from `config/`, plus `alerting/` where an Alertmanager runs
+   and `hub/` on the hub, fills the
    `__PLACEHOLDERS__`, and on the hub generates the fleet scrape targets and Grafana datasources.
 2. Writes the secret files. The `observer` role's password is generated once.
 3. Creates or updates the `observer` role and `pg_stat_statements`. It warns if Postgres runs

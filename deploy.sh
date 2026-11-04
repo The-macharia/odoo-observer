@@ -103,9 +103,10 @@ PY
 fi
 
 # --- config ---------------------------------------------------------------------------------
-# rebuilt from scratch, so turning a part off also removes its files
-rm -rf "$OBS/etc"
 mkdir -p "$OBS/etc" "$OBS/secrets"
+# files are rebuilt so a part turned off leaves nothing behind; directories stay, since running
+# services bind-mount them and would see them empty until restarted
+find "$OBS/etc" -type f -delete
 chmod 700 "$OBS/secrets"
 cp -r "$SRC/config/." "$OBS/etc/"
 cp "$SRC/stack.yml" "$SRC/alertmanager-stack.yml" "$OBS/"
